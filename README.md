@@ -43,7 +43,8 @@ Limitacion principal:
 
 Configuracion Android:
 
-- `applicationId`: `com.julm.mitecmi`
+- `applicationId`: `com.optimizare.mitecmi`
+- Namespace Kotlin: `com.julm.mitecmi`
 - `minSdk`: 24
 - `targetSdk`: 37
 - `compileSdk`: 37
@@ -116,3 +117,8 @@ Pendientes principales:
 - Agregar Firebase Storage para fotografias de objetos perdidos.
 - Implementar notificaciones push para eventos, propuestas o encuestas relevantes.
 - Revisar reglas de seguridad y permisos de Firebase.
+
+Documentacion tecnica:
+
+- `docs/FIREBASE_SETUP.md`
+- `docs/FIRESTORE_MODELO_DATOS.md`

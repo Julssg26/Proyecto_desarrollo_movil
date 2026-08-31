@@ -155,20 +155,29 @@ Checklist manual:
 - Buscar contenido con palabras clave.
 - Revisar si Perfil refleja actividad despues de interactuar.
 
+## Preparacion Firebase
+
+La base tecnica para Firebase ya quedo iniciada:
+
+- Dependencias preparadas para Authentication, Firestore, Cloud Messaging y Storage.
+- Plugin de Google Services declarado, pendiente de activarse cuando exista `app/google-services.json`.
+- Constantes de colecciones Firestore en `FirestoreCollections`.
+- Modelos preparados con valores por defecto para facilitar lectura desde Firestore.
+- Documentacion tecnica en `docs/FIREBASE_SETUP.md` y `docs/FIRESTORE_MODELO_DATOS.md`.
+
 ## Siguiente Fase Recomendada
 
 Fase 2: persistencia y usuarios reales.
 
 Tareas sugeridas:
 
-1. Conectar Firebase al proyecto Android.
-2. Agregar Firebase Authentication.
-3. Crear colecciones Firestore para propuestas, votos, encuestas, respuestas, clubes, anuncios, eventos y objetos perdidos.
-4. Crear una implementacion real de `MiTecmiRepository` usando Firestore.
-5. Mantener el `FakeMiTecmiRepository` para pruebas locales o desarrollo rapido.
-6. Agregar Firebase Storage para fotos de objetos perdidos.
-7. Definir reglas de seguridad para que cada usuario solo modifique lo permitido.
-8. Preparar notificaciones push para eventos y actualizaciones importantes.
+1. Agregar `app/google-services.json` desde Firebase Console.
+2. Activar el plugin `alias(libs.plugins.google.services)` en `app/build.gradle.kts`.
+3. Crear una implementacion real de `MiTecmiRepository` usando Firestore.
+4. Mantener el `FakeMiTecmiRepository` para pruebas locales o desarrollo rapido.
+5. Agregar Firebase Storage para fotos de objetos perdidos.
+6. Definir reglas de seguridad para que cada usuario solo modifique lo permitido.
+7. Preparar notificaciones push para eventos y actualizaciones importantes.
 
 ## Estado General
 

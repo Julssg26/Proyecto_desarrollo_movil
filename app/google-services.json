@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1096733952135",
+    "project_id": "mitecmi",
+    "storage_bucket": "mitecmi.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1096733952135:android:45f644b0de862137885022",
+        "android_client_info": {
+          "package_name": "com.optimizare.mitecmi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGVZqlEZgXwiDXj1ZkKibRbDgk7qg9x3A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

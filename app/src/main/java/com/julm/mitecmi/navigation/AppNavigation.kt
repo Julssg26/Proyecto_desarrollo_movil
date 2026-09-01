@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -24,7 +25,9 @@ import com.julm.mitecmi.ui.screens.DetallePropuestaScreen
 import com.julm.mitecmi.ui.screens.EncuestaScreen
 import com.julm.mitecmi.ui.screens.EventosScreen
 import com.julm.mitecmi.ui.screens.HomeScreen
+import com.julm.mitecmi.ui.screens.LoginScreen
 import com.julm.mitecmi.ui.screens.PerfilScreen
+import com.julm.mitecmi.viewmodel.AuthViewModel
 import com.julm.mitecmi.viewmodel.MiTecmiViewModel
 
 object Routes {
@@ -84,8 +87,22 @@ object Routes {
 
 @Composable
 fun AppNavigation(
+    authViewModel: AuthViewModel = viewModel(),
     viewModel: MiTecmiViewModel = viewModel()
 ) {
+
+    val authState by
+    authViewModel.uiState.collectAsState()
+
+    if (!authState.isAuthenticated) {
+        LoginScreen(
+            authState = authState,
+            onLogin = authViewModel::login,
+            onRegister = authViewModel::register,
+            onClearError = authViewModel::clearError
+        )
+        return
+    }
 
     val navController =
         rememberNavController()
@@ -126,7 +143,10 @@ fun AppNavigation(
         AppNavHost(
             navController = navController,
             innerPadding = innerPadding,
-            viewModel = viewModel
+            viewModel = viewModel,
+            userName = authState.userName,
+            userEmail = authState.userEmail,
+            onSignOut = authViewModel::signOut
         )
     }
 }
@@ -135,7 +155,10 @@ fun AppNavigation(
 private fun AppNavHost(
     navController: NavHostController,
     innerPadding: PaddingValues,
-    viewModel: MiTecmiViewModel
+    viewModel: MiTecmiViewModel,
+    userName: String,
+    userEmail: String,
+    onSignOut: () -> Unit
 ) {
 
     NavHost(
@@ -340,10 +363,13 @@ private fun AppNavHost(
             route = Routes.PERFIL
         ) {
 
-            PerfilScreen(
-                viewModel = viewModel
-            )
-        }
+                PerfilScreen(
+                    viewModel = viewModel,
+                    userName = userName,
+                    userEmail = userEmail,
+                    onSignOut = onSignOut
+                )
+            }
 
         composable(
             route =

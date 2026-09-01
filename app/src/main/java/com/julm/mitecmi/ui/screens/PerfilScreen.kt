@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,7 +32,10 @@ import com.julm.mitecmi.viewmodel.MiTecmiViewModel
 
 @Composable
 fun PerfilScreen(
-    viewModel: MiTecmiViewModel
+    viewModel: MiTecmiViewModel,
+    userName: String,
+    userEmail: String,
+    onSignOut: () -> Unit
 ) {
 
     val propuestas by
@@ -116,7 +120,9 @@ fun PerfilScreen(
 
                         Text(
                             text =
-                                "Estudiante Tecmilenio",
+                                userName.ifBlank {
+                                    "Estudiante Tecmilenio"
+                                },
 
                             fontSize = 22.sp,
 
@@ -153,6 +159,22 @@ fun PerfilScreen(
                                     .colorScheme
                                     .onSurfaceVariant
                         )
+
+                        if (userEmail.isNotBlank()) {
+                            Spacer(
+                                modifier =
+                                    Modifier.height(8.dp)
+                            )
+
+                            Text(
+                                text = userEmail,
+                                fontSize = 13.sp,
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -254,6 +276,21 @@ fun PerfilScreen(
 
                     valor = "5"
                 )
+            }
+
+            item {
+
+                OutlinedButton(
+                    onClick = onSignOut,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+
+                    Text(
+                        text = "Cerrar sesion",
+                        color = TecmiDarkGreen,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             item {

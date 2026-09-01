@@ -40,4 +40,6 @@ En Firebase Console deben activarse:
 - El `applicationId` debe coincidir con el `package_name` dentro de `google-services.json`.
 - El namespace/codigo Kotlin puede seguir usando `com.julm.mitecmi`; no necesita coincidir con Firebase mientras el `applicationId` sea correcto.
 - Las reglas de seguridad deben definirse antes de usar datos reales.
-- La app todavia usa `FakeMiTecmiRepository`; el siguiente paso tecnico es crear una implementacion real de `MiTecmiRepository` usando Firestore.
+- El login ya usa Firebase Authentication.
+- El registro de usuarios valida que el correo termine en `@tecmilenio.mx` y guarda el nombre como display name del usuario en Firebase Auth.
+- La app todavia usa `FakeMiTecmiRepository` para datos de comunidad; el siguiente paso tecnico es crear una implementacion real de `MiTecmiRepository` usando Firestore.

@@ -16,6 +16,8 @@ El proyecto ya cuenta con una primera version funcional para pruebas en emulador
 
 Funcionalidades disponibles:
 
+- Login con Firebase Authentication por correo institucional y contrasena.
+- Registro separado con nombre, correo `@tecmilenio.mx`, contrasena y confirmacion de contrasena.
 - Navegacion inferior con Inicio, Buscar, Eventos, Comunidad y Perfil.
 - Feed principal con contenido de eventos, propuestas, encuestas, anuncios, clubes y objetos perdidos.
 - Busqueda local sobre el contenido disponible.
@@ -110,7 +112,6 @@ Nota: el Compose Preview no debe tomarse como prueba final. La validacion real d
 
 Pendientes principales:
 
-- Integrar Firebase Authentication.
 - Conectar Firestore como fuente de datos persistente.
 - Guardar propuestas, votos, encuestas, eventos, objetos y anuncios en la nube.
 - Validar votos unicos por usuario con datos reales.

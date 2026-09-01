@@ -16,14 +16,14 @@ Estado observado del repositorio remoto:
 
 - Repositorio publico: `Julssg26/Proyecto_desarrollo_movil`.
 - Rama principal: `main`.
-- Ultimo commit observado: `Prototipo funcional Mi Tecmi`.
+- Ultimo commit observado: `Prepara base Firebase`.
 - Contenido remoto visible: proyecto Android con modulo `app`, Gradle Wrapper y configuracion base.
 
 Observacion local:
 
-- El proyecto local no tiene commits locales registrados en la rama actual.
-- El proyecto local no tiene remoto `origin` configurado.
-- Para sincronizar avances futuros, conviene conectar el remoto antes de hacer commit y push.
+- La rama local `main` esta conectada con `origin/main`.
+- Los cambios se estan subiendo directamente a `main` durante esta etapa de desarrollo.
+- Los documentos PDF/DOCX de referencia se mantienen locales y no se suben al repositorio.
 
 ## Avance Implementado
 
@@ -107,8 +107,8 @@ Perfil:
 
 ## Limitaciones Actuales
 
-- No hay Firebase conectado todavia.
-- No hay autenticacion real de usuarios.
+- Firebase ya esta conectado a nivel de configuracion Android.
+- La autenticacion por correo/contrasena ya funciona con Firebase Auth.
 - No hay base de datos persistente.
 - No hay sincronizacion entre dispositivos.
 - No hay carga real de imagenes para objetos o clubes.
@@ -135,7 +135,7 @@ Pendientes del plan original que todavia no se observan implementados:
 - Insignias por tipo de evento.
 - Mapa del campus.
 - Notificaciones push.
-- Integracion real con Firebase/Firestore.
+- Integracion real de los modulos de comunidad con Firestore.
 
 ## Pruebas Recomendadas
 
@@ -144,6 +144,10 @@ Las pruebas funcionales deben hacerse ejecutando la app en emulador o dispositiv
 Checklist manual:
 
 - Abrir la app desde Android Studio.
+- Crear cuenta con nombre, correo `@tecmilenio.mx`, contrasena y confirmacion.
+- Intentar crear cuenta con otro dominio y confirmar que la app lo rechaza.
+- Iniciar sesion con una cuenta registrada.
+- Cerrar sesion desde Perfil.
 - Navegar entre las cinco secciones principales.
 - Crear una propuesta y confirmar que aparece en la lista.
 - Votar una propuesta y retirar el voto.
@@ -155,15 +159,18 @@ Checklist manual:
 - Buscar contenido con palabras clave.
 - Revisar si Perfil refleja actividad despues de interactuar.
 
-## Preparacion Firebase
+## Preparacion Firebase y Login
 
 La base tecnica para Firebase ya quedo iniciada:
 
 - Dependencias preparadas para Authentication, Firestore, Cloud Messaging y Storage.
-- Plugin de Google Services declarado, pendiente de activarse cuando exista `app/google-services.json`.
+- Plugin de Google Services declarado y activo con `app/google-services.json`.
 - Constantes de colecciones Firestore en `FirestoreCollections`.
 - Modelos preparados con valores por defecto para facilitar lectura desde Firestore.
 - Documentacion tecnica en `docs/FIREBASE_SETUP.md` y `docs/FIRESTORE_MODELO_DATOS.md`.
+- Login con Firebase Authentication por correo institucional y contrasena.
+- Registro separado con nombre, correo `@tecmilenio.mx`, contrasena y confirmacion de contrasena.
+- Cierre de sesion desde Perfil.
 
 ## Siguiente Fase Recomendada
 
@@ -171,13 +178,11 @@ Fase 2: persistencia y usuarios reales.
 
 Tareas sugeridas:
 
-1. Agregar `app/google-services.json` desde Firebase Console.
-2. Activar el plugin `alias(libs.plugins.google.services)` en `app/build.gradle.kts`.
-3. Crear una implementacion real de `MiTecmiRepository` usando Firestore.
-4. Mantener el `FakeMiTecmiRepository` para pruebas locales o desarrollo rapido.
-5. Agregar Firebase Storage para fotos de objetos perdidos.
-6. Definir reglas de seguridad para que cada usuario solo modifique lo permitido.
-7. Preparar notificaciones push para eventos y actualizaciones importantes.
+1. Crear una implementacion real de `MiTecmiRepository` usando Firestore.
+2. Mantener el `FakeMiTecmiRepository` para pruebas locales o desarrollo rapido.
+3. Agregar Firebase Storage para fotos de objetos perdidos.
+4. Definir reglas de seguridad para que cada usuario solo modifique lo permitido.
+5. Preparar notificaciones push para eventos y actualizaciones importantes.
 
 ## Estado General
 

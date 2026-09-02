@@ -1,6 +1,6 @@
 # Progreso del Proyecto Mi Tecmi
 
-Fecha de revision: 31 de agosto de 2026
+Fecha de revision: 1 de septiembre de 2026
 
 Repositorio GitHub: https://github.com/Julssg26/Proyecto_desarrollo_movil
 
@@ -16,7 +16,7 @@ Estado observado del repositorio remoto:
 
 - Repositorio publico: `Julssg26/Proyecto_desarrollo_movil`.
 - Rama principal: `main`.
-- Ultimo commit observado: `Prepara base Firebase`.
+- Ultimo commit observado antes de esta revision: `Implementa login institucional`.
 - Contenido remoto visible: proyecto Android con modulo `app`, Gradle Wrapper y configuracion base.
 
 Observacion local:
@@ -24,6 +24,7 @@ Observacion local:
 - La rama local `main` esta conectada con `origin/main`.
 - Los cambios se estan subiendo directamente a `main` durante esta etapa de desarrollo.
 - Los documentos PDF/DOCX de referencia se mantienen locales y no se suben al repositorio.
+- Android Studio puede modificar archivos locales de `.idea`; esos cambios no forman parte del avance funcional salvo que se indiquen explicitamente.
 
 ## Avance Implementado
 
@@ -109,6 +110,8 @@ Perfil:
 
 - Firebase ya esta conectado a nivel de configuracion Android.
 - La autenticacion por correo/contrasena ya funciona con Firebase Auth.
+- El registro ya solicita verificacion de correo con Firebase Auth, pero la entrega puede depender de la configuracion del proyecto Firebase y de filtros del proveedor de correo.
+- Para pruebas se habilito temporalmente el dominio `@lobelisque.space` ademas de `@tecmilenio.mx`; falta configurar un servicio real de correo para ese dominio si se quiere recibir mensajes ahi.
 - No hay base de datos persistente.
 - No hay sincronizacion entre dispositivos.
 - No hay carga real de imagenes para objetos o clubes.
@@ -144,9 +147,14 @@ Las pruebas funcionales deben hacerse ejecutando la app en emulador o dispositiv
 Checklist manual:
 
 - Abrir la app desde Android Studio.
-- Crear cuenta con nombre, correo `@tecmilenio.mx`, contrasena y confirmacion.
+- Crear cuenta con nombre, correo `@tecmilenio.mx` o `@lobelisque.space`, contrasena y confirmacion.
 - Intentar crear cuenta con otro dominio y confirmar que la app lo rechaza.
-- Iniciar sesion con una cuenta registrada.
+- Confirmar que se envia el correo de verificacion despues del registro.
+- Reenviar verificacion desde la app si el correo no llega.
+- Verificar el correo desde el enlace recibido y usar `Ya verifique mi correo` para actualizar el estado.
+- Iniciar sesion con una cuenta registrada y verificada.
+- Confirmar que una cuenta no verificada no puede entrar a la app.
+- Probar recuperacion de contrasena con `Olvide mi contrasena`.
 - Cerrar sesion desde Perfil.
 - Navegar entre las cinco secciones principales.
 - Crear una propuesta y confirmar que aparece en la lista.
@@ -168,21 +176,32 @@ La base tecnica para Firebase ya quedo iniciada:
 - Constantes de colecciones Firestore en `FirestoreCollections`.
 - Modelos preparados con valores por defecto para facilitar lectura desde Firestore.
 - Documentacion tecnica en `docs/FIREBASE_SETUP.md` y `docs/FIRESTORE_MODELO_DATOS.md`.
-- Login con Firebase Authentication por correo institucional y contrasena.
-- Registro separado con nombre, correo `@tecmilenio.mx`, contrasena y confirmacion de contrasena.
+- Login con Firebase Authentication por correo autorizado y contrasena.
+- Registro separado con nombre, correo autorizado, contrasena y confirmacion de contrasena.
+- Validacion de dominios permitidos: `@tecmilenio.mx` y `@lobelisque.space`.
+- Envio de correo de verificacion despues de crear cuenta.
+- Bloqueo de acceso hasta que Firebase marque el correo como verificado.
+- Acciones para reenviar correo de verificacion y revisar estado de verificacion desde la app.
+- Recuperacion de contrasena mediante correo de Firebase Auth.
+- Mensajes de error amigables en espanol para login, registro, recuperacion y verificacion.
+- Campos de contrasena con opcion para mostrar u ocultar el texto.
 - Cierre de sesion desde Perfil.
 
 ## Siguiente Fase Recomendada
 
-Fase 2: persistencia y usuarios reales.
+Fase 2: estabilizar autenticacion y despues avanzar a persistencia con usuarios reales.
 
 Tareas sugeridas:
 
-1. Crear una implementacion real de `MiTecmiRepository` usando Firestore.
-2. Mantener el `FakeMiTecmiRepository` para pruebas locales o desarrollo rapido.
-3. Agregar Firebase Storage para fotos de objetos perdidos.
-4. Definir reglas de seguridad para que cada usuario solo modifique lo permitido.
-5. Preparar notificaciones push para eventos y actualizaciones importantes.
+1. Revisar en Firebase Console las plantillas de correo de Authentication, nombre publico del proyecto y correo de soporte.
+2. Confirmar si el correo institucional de Tecmilenio bloquea o pone en cuarentena los correos de Firebase.
+3. Configurar un servicio de correo para `lobelisque.space` si se usara como dominio de prueba, por ejemplo Cloudflare Email Routing, Zoho Mail o Google Workspace.
+4. Una vez validada la entrega de correos, decidir si `@lobelisque.space` se queda como dominio de pruebas o se elimina antes de una entrega formal.
+5. Crear una implementacion real de `MiTecmiRepository` usando Firestore.
+6. Mantener el `FakeMiTecmiRepository` para pruebas locales o desarrollo rapido.
+7. Agregar Firebase Storage para fotos de objetos perdidos.
+8. Definir reglas de seguridad para que cada usuario solo modifique lo permitido.
+9. Preparar notificaciones push para eventos y actualizaciones importantes.
 
 ## Estado General
 

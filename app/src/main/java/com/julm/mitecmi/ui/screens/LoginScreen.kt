@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.julm.mitecmi.ui.theme.TecmiBackground
@@ -45,6 +46,9 @@ fun LoginScreen(
     authState: AuthUiState,
     onLogin: (String, String) -> Unit,
     onRegister: (String, String, String, String) -> Unit,
+    onResetPassword: (String) -> Unit,
+    onResendVerification: () -> Unit,
+    onCheckEmailVerification: () -> Unit,
     onClearError: () -> Unit
 ) {
 
@@ -54,6 +58,8 @@ fun LoginScreen(
         RegisterContent(
             authState = authState,
             onRegister = onRegister,
+            onResendVerification = onResendVerification,
+            onCheckEmailVerification = onCheckEmailVerification,
             onBackToLogin = {
                 onClearError()
                 showRegister = false
@@ -64,6 +70,9 @@ fun LoginScreen(
         LoginContent(
             authState = authState,
             onLogin = onLogin,
+            onResetPassword = onResetPassword,
+            onResendVerification = onResendVerification,
+            onCheckEmailVerification = onCheckEmailVerification,
             onGoToRegister = {
                 onClearError()
                 showRegister = true
@@ -77,6 +86,9 @@ fun LoginScreen(
 private fun LoginContent(
     authState: AuthUiState,
     onLogin: (String, String) -> Unit,
+    onResetPassword: (String) -> Unit,
+    onResendVerification: () -> Unit,
+    onCheckEmailVerification: () -> Unit,
     onGoToRegister: () -> Unit,
     onClearError: () -> Unit
 ) {
@@ -85,7 +97,7 @@ private fun LoginContent(
     var password by remember { mutableStateOf("") }
 
     AuthContainer(
-        subtitle = "Accede con tu correo institucional"
+        subtitle = "Accede con tu correo autorizado"
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -102,21 +114,30 @@ private fun LoginContent(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "Iniciar sesion",
+                    text = "Iniciar sesión",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = TecmiDarkGreen
                 )
 
+                if (authState.isEmailVerificationPending) {
+                    EmailVerificationNotice(
+                        email = authState.userEmail,
+                        isLoading = authState.isLoading,
+                        onResendVerification = onResendVerification,
+                        onCheckEmailVerification = onCheckEmailVerification
+                    )
+                }
+
                 AuthTextField(
                     value = email,
                     onValueChange = {
                         email = it
-                        if (authState.errorMessage.isNotBlank()) {
+                        if (authState.hasFeedback()) {
                             onClearError()
                         }
                     },
-                    label = "Correo institucional",
+                    label = "Correo autorizado",
                     keyboardType = KeyboardType.Email
                 )
 
@@ -124,26 +145,41 @@ private fun LoginContent(
                     value = password,
                     onValueChange = {
                         password = it
-                        if (authState.errorMessage.isNotBlank()) {
+                        if (authState.hasFeedback()) {
                             onClearError()
                         }
                     },
-                    label = "Contrasena",
+                    label = "Contraseña",
                     keyboardType = KeyboardType.Password,
                     isPassword = true
                 )
 
-                AuthError(
-                    message = authState.errorMessage
+                AuthFeedback(
+                    errorMessage = authState.errorMessage,
+                    successMessage = authState.successMessage
                 )
 
                 PrimaryAuthButton(
                     text = "Entrar",
                     isLoading = authState.isLoading,
+                    enabled = email.isNotBlank() && password.isNotBlank(),
                     onClick = {
                         onLogin(email, password)
                     }
                 )
+
+                TextButton(
+                    onClick = {
+                        onResetPassword(email)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !authState.isLoading
+                ) {
+                    Text(
+                        text = "Olvidé mi contraseña",
+                        color = TecmiDarkGreen
+                    )
+                }
 
                 OutlinedButton(
                     onClick = onGoToRegister,
@@ -151,7 +187,7 @@ private fun LoginContent(
                     enabled = !authState.isLoading
                 ) {
                     Text(
-                        text = "Crear cuenta institucional",
+                        text = "Crear cuenta",
                         color = TecmiGreen
                     )
                 }
@@ -164,6 +200,8 @@ private fun LoginContent(
 private fun RegisterContent(
     authState: AuthUiState,
     onRegister: (String, String, String, String) -> Unit,
+    onResendVerification: () -> Unit,
+    onCheckEmailVerification: () -> Unit,
     onBackToLogin: () -> Unit,
     onClearError: () -> Unit
 ) {
@@ -174,7 +212,7 @@ private fun RegisterContent(
     var confirmPassword by remember { mutableStateOf("") }
 
     AuthContainer(
-        subtitle = "Crea tu cuenta con correo @tecmilenio.mx"
+        subtitle = "Crea tu cuenta con correo autorizado"
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -197,11 +235,20 @@ private fun RegisterContent(
                     color = TecmiDarkGreen
                 )
 
+                if (authState.isEmailVerificationPending) {
+                    EmailVerificationNotice(
+                        email = authState.userEmail,
+                        isLoading = authState.isLoading,
+                        onResendVerification = onResendVerification,
+                        onCheckEmailVerification = onCheckEmailVerification
+                    )
+                }
+
                 AuthTextField(
                     value = name,
                     onValueChange = {
                         name = it
-                        if (authState.errorMessage.isNotBlank()) {
+                        if (authState.hasFeedback()) {
                             onClearError()
                         }
                     },
@@ -212,11 +259,11 @@ private fun RegisterContent(
                     value = email,
                     onValueChange = {
                         email = it
-                        if (authState.errorMessage.isNotBlank()) {
+                        if (authState.hasFeedback()) {
                             onClearError()
                         }
                     },
-                    label = "Correo institucional",
+                    label = "Correo autorizado",
                     keyboardType = KeyboardType.Email
                 )
 
@@ -224,11 +271,11 @@ private fun RegisterContent(
                     value = password,
                     onValueChange = {
                         password = it
-                        if (authState.errorMessage.isNotBlank()) {
+                        if (authState.hasFeedback()) {
                             onClearError()
                         }
                     },
-                    label = "Contrasena",
+                    label = "Contraseña",
                     keyboardType = KeyboardType.Password,
                     isPassword = true
                 )
@@ -237,28 +284,34 @@ private fun RegisterContent(
                     value = confirmPassword,
                     onValueChange = {
                         confirmPassword = it
-                        if (authState.errorMessage.isNotBlank()) {
+                        if (authState.hasFeedback()) {
                             onClearError()
                         }
                     },
-                    label = "Confirmar contrasena",
+                    label = "Confirmar contraseña",
                     keyboardType = KeyboardType.Password,
                     isPassword = true
                 )
 
                 Text(
-                    text = "Solo se permiten cuentas con dominio @tecmilenio.mx.",
+                    text = "Se permiten cuentas @tecmilenio.mx o @lobelisque.space.",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                AuthError(
-                    message = authState.errorMessage
+                AuthFeedback(
+                    errorMessage = authState.errorMessage,
+                    successMessage = authState.successMessage
                 )
 
                 PrimaryAuthButton(
                     text = "Crear cuenta",
                     isLoading = authState.isLoading,
+                    enabled = !authState.isEmailVerificationPending &&
+                        name.isNotBlank() &&
+                        email.isNotBlank() &&
+                        password.isNotBlank() &&
+                        confirmPassword.isNotBlank(),
                     onClick = {
                         onRegister(
                             name,
@@ -275,7 +328,7 @@ private fun RegisterContent(
                     enabled = !authState.isLoading
                 ) {
                     Text(
-                        text = "Volver a iniciar sesion",
+                        text = "Volver a iniciar sesión",
                         color = TecmiDarkGreen
                     )
                 }
@@ -339,6 +392,8 @@ private fun AuthTextField(
     keyboardType: KeyboardType = KeyboardType.Text,
     isPassword: Boolean = false
 ) {
+    var passwordVisible by remember { mutableStateOf(false) }
+
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -347,10 +402,30 @@ private fun AuthTextField(
             Text(label)
         },
         singleLine = true,
-        visualTransformation = if (isPassword) {
+        visualTransformation = if (isPassword && !passwordVisible) {
             PasswordVisualTransformation()
         } else {
-            androidx.compose.ui.text.input.VisualTransformation.None
+            VisualTransformation.None
+        },
+        trailingIcon = if (isPassword) {
+            {
+                TextButton(
+                    onClick = {
+                        passwordVisible = !passwordVisible
+                    }
+                ) {
+                    Text(
+                        text = if (passwordVisible) {
+                            "Ocultar"
+                        } else {
+                            "Mostrar"
+                        },
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        } else {
+            null
         },
         keyboardOptions = KeyboardOptions(
             keyboardType = keyboardType
@@ -359,28 +434,84 @@ private fun AuthTextField(
 }
 
 @Composable
-private fun AuthError(
-    message: String
+private fun EmailVerificationNotice(
+    email: String,
+    isLoading: Boolean,
+    onResendVerification: () -> Unit,
+    onCheckEmailVerification: () -> Unit
 ) {
-    if (message.isNotBlank()) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         Text(
-            text = message,
+            text = "Verifica tu correo para continuar.",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TecmiDarkGreen
+        )
+
+        Text(
+            text = "Enviamos el enlace a ${email.ifBlank { "tu correo autorizado" }}. Revisa spam o correo no deseado.",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        OutlinedButton(
+            onClick = onResendVerification,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading
+        ) {
+            Text("Reenviar verificación")
+        }
+
+        TextButton(
+            onClick = onCheckEmailVerification,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading
+        ) {
+            Text(
+                text = "Ya verifiqué mi correo",
+                color = TecmiDarkGreen
+            )
+        }
+    }
+}
+
+@Composable
+private fun AuthFeedback(
+    errorMessage: String,
+    successMessage: String
+) {
+    if (errorMessage.isNotBlank()) {
+        Text(
+            text = errorMessage,
             color = MaterialTheme.colorScheme.error,
             fontSize = 13.sp
         )
+    } else if (successMessage.isNotBlank()) {
+        Text(
+            text = successMessage,
+            color = TecmiDarkGreen,
+            fontSize = 13.sp
+        )
     }
+}
+
+private fun AuthUiState.hasFeedback(): Boolean {
+    return errorMessage.isNotBlank() || successMessage.isNotBlank()
 }
 
 @Composable
 private fun PrimaryAuthButton(
     text: String,
     isLoading: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        enabled = !isLoading,
+        enabled = enabled && !isLoading,
         colors = ButtonDefaults.buttonColors(
             containerColor = TecmiDarkGreen
         )

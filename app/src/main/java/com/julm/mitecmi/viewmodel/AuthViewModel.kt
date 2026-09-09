@@ -1,5 +1,6 @@
 package com.julm.mitecmi.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.FirebaseTooManyRequestsException
@@ -21,7 +22,10 @@ data class AuthUiState(
     val userEmail: String = "",
     val errorMessage: String = "",
     val successMessage: String = "",
-    val isEmailVerificationPending: Boolean = false
+    val isEmailVerificationPending: Boolean = false,
+    val passwordResetEmail: String = "",
+    val isPasswordResetEmailSent: Boolean = false,
+    val isPasswordResetCompleted: Boolean = false
 )
 
 class AuthViewModel(
@@ -168,6 +172,36 @@ class AuthViewModel(
             }
     }
 
+    fun verifyEmailCode(
+        code: String
+    ) {
+        val actionCode = extractActionCode(code)
+
+        if (actionCode.isBlank()) {
+            showError("Ingresa el código o pega el enlace de verificación que recibiste por correo.")
+            return
+        }
+
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            errorMessage = "",
+            successMessage = ""
+        )
+
+        firebaseAuth.applyActionCode(actionCode)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    refreshSignedInUser(
+                        showUnverifiedMessage = false
+                    )
+                } else {
+                    showError(
+                        actionCodeErrorMessage(task.exception)
+                    )
+                }
+            }
+    }
+
     fun resetPassword(
         email: String
     ) {
@@ -184,15 +218,23 @@ class AuthViewModel(
         _uiState.value = _uiState.value.copy(
             isLoading = true,
             errorMessage = "",
-            successMessage = ""
+            successMessage = "",
+            passwordResetEmail = email.trim(),
+            isPasswordResetEmailSent = false,
+            isPasswordResetCompleted = false
         )
 
         firebaseAuth
             .sendPasswordResetEmail(email.trim())
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    showSuccess(
-                        "Te enviamos un correo para recuperar tu contraseña."
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        errorMessage = "",
+                        successMessage = "Te enviamos un correo para recuperar tu contraseña.",
+                        passwordResetEmail = email.trim(),
+                        isPasswordResetEmailSent = true,
+                        isPasswordResetCompleted = false
                     )
                 } else {
                     showError(
@@ -200,6 +242,60 @@ class AuthViewModel(
                     )
                 }
             }
+    }
+
+    fun confirmPasswordReset(
+        code: String,
+        newPassword: String,
+        confirmPassword: String
+    ) {
+        val actionCode = extractActionCode(code)
+
+        if (actionCode.isBlank()) {
+            showError("Ingresa el código o pega el enlace de recuperación que recibiste por correo.")
+            return
+        }
+
+        if (newPassword.isBlank() || confirmPassword.isBlank()) {
+            showError("Ingresa y confirma tu nueva contraseña.")
+            return
+        }
+
+        if (newPassword.length < 6) {
+            showError("La contraseña debe tener al menos 6 caracteres.")
+            return
+        }
+
+        if (newPassword != confirmPassword) {
+            showError("Las contraseñas no coinciden.")
+            return
+        }
+
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            errorMessage = "",
+            successMessage = "",
+            isPasswordResetCompleted = false
+        )
+
+        firebaseAuth.confirmPasswordReset(
+            actionCode,
+            newPassword
+        ).addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "",
+                    successMessage = "Tu contraseña se actualizó correctamente. Ya puedes iniciar sesión.",
+                    isPasswordResetEmailSent = false,
+                    isPasswordResetCompleted = true
+                )
+            } else {
+                showError(
+                    actionCodeErrorMessage(task.exception)
+                )
+            }
+        }
     }
 
     fun signOut() {
@@ -210,6 +306,16 @@ class AuthViewModel(
         _uiState.value = _uiState.value.copy(
             errorMessage = "",
             successMessage = ""
+        )
+    }
+
+    fun clearPasswordResetState() {
+        _uiState.value = _uiState.value.copy(
+            errorMessage = "",
+            successMessage = "",
+            passwordResetEmail = "",
+            isPasswordResetEmailSent = false,
+            isPasswordResetCompleted = false
         )
     }
 
@@ -310,6 +416,20 @@ class AuthViewModel(
                     )
                 }
             }
+    }
+
+    private fun extractActionCode(
+        input: String
+    ): String {
+        val trimmedInput = input.trim()
+
+        if (!trimmedInput.startsWith("http://") && !trimmedInput.startsWith("https://")) {
+            return trimmedInput
+        }
+
+        return runCatching {
+            Uri.parse(trimmedInput).getQueryParameter("oobCode").orEmpty()
+        }.getOrDefault("")
     }
 
     private fun sendVerificationEmail(
@@ -459,6 +579,28 @@ class AuthViewModel(
 
             else -> {
                 "No se pudo enviar el correo de verificación."
+            }
+        }
+    }
+
+    private fun actionCodeErrorMessage(
+        exception: Exception?
+    ): String {
+        return when (exception) {
+            is FirebaseAuthInvalidCredentialsException -> {
+                "El código no es válido o ya fue usado. Revisa el correo más reciente."
+            }
+
+            is FirebaseNetworkException -> {
+                "Revisa tu conexión e inténtalo de nuevo."
+            }
+
+            is FirebaseTooManyRequestsException -> {
+                "Demasiados intentos. Espera un momento e inténtalo de nuevo."
+            }
+
+            else -> {
+                "No se pudo validar el código. Revisa el correo más reciente."
             }
         }
     }

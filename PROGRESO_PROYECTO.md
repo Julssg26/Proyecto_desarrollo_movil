@@ -191,6 +191,23 @@ La base tecnica para Firebase ya quedo iniciada:
 
 Fase 2: estabilizar autenticacion y despues avanzar a persistencia con usuarios reales.
 
+Actualizacion 3 de septiembre de 2026:
+
+- Se configuro Firebase Authentication en consola para usar Email/Password.
+- Se agrego `lobelisque.space` como dominio autorizado en Firebase Authentication.
+- Se personalizaron las plantillas de correo de verificacion y recuperacion de contrasena desde Firebase Console.
+- En la app se separo el flujo de autenticacion en pasos: login, crear cuenta, verificar correo, solicitar recuperacion y confirmar recuperacion.
+- La verificacion de cuenta y recuperacion de contrasena siguen usando Firebase Auth de forma segura mediante enlaces/action codes.
+- La app permite pegar el enlace completo de Firebase o solo el valor `oobCode` para validar verificacion o recuperacion.
+- Se valido compilacion con `./gradlew :app:assembleDebug` y pruebas unitarias con `./gradlew :app:testDebugUnitTest`.
+
+Punto donde nos quedamos:
+
+- Falta probar manualmente en emulador o dispositivo fisico el flujo completo de crear cuenta, recibir correo, verificar cuenta e iniciar sesion.
+- Falta probar manualmente `Olvide mi contrasena`, recibir correo, pegar enlace o `oobCode`, cambiar contrasena e iniciar sesion con la nueva contrasena.
+- Si el correo no llega, revisar spam, plantillas de Firebase, correo de soporte del proyecto y posibles bloqueos del proveedor de correo.
+- Por ahora no se usara backend propio ni PC local expuesta; la recomendacion actual es mantener Firebase Auth para este proyecto escolar.
+
 Tareas sugeridas:
 
 1. Revisar en Firebase Console las plantillas de correo de Authentication, nombre publico del proyecto y correo de soporte.

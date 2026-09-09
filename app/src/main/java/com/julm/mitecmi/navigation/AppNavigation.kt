@@ -100,9 +100,12 @@ fun AppNavigation(
             onLogin = authViewModel::login,
             onRegister = authViewModel::register,
             onResetPassword = authViewModel::resetPassword,
+            onVerifyEmailCode = authViewModel::verifyEmailCode,
+            onConfirmPasswordReset = authViewModel::confirmPasswordReset,
             onResendVerification = authViewModel::resendVerificationEmail,
             onCheckEmailVerification = authViewModel::checkEmailVerification,
-            onClearError = authViewModel::clearError
+            onClearError = authViewModel::clearError,
+            onClearPasswordResetState = authViewModel::clearPasswordResetState
         )
         return
     }

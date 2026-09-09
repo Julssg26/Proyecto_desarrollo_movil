@@ -23,6 +23,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,49 +48,117 @@ fun LoginScreen(
     onLogin: (String, String) -> Unit,
     onRegister: (String, String, String, String) -> Unit,
     onResetPassword: (String) -> Unit,
+    onVerifyEmailCode: (String) -> Unit,
+    onConfirmPasswordReset: (String, String, String) -> Unit,
     onResendVerification: () -> Unit,
     onCheckEmailVerification: () -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onClearPasswordResetState: () -> Unit
 ) {
 
-    var showRegister by remember { mutableStateOf(false) }
+    var authStep by remember { mutableStateOf(AuthStep.Login) }
 
-    if (showRegister) {
-        RegisterContent(
-            authState = authState,
-            onRegister = onRegister,
-            onResendVerification = onResendVerification,
-            onCheckEmailVerification = onCheckEmailVerification,
-            onBackToLogin = {
-                onClearError()
-                showRegister = false
-            },
-            onClearError = onClearError
-        )
-    } else {
-        LoginContent(
-            authState = authState,
-            onLogin = onLogin,
-            onResetPassword = onResetPassword,
-            onResendVerification = onResendVerification,
-            onCheckEmailVerification = onCheckEmailVerification,
-            onGoToRegister = {
-                onClearError()
-                showRegister = true
-            },
-            onClearError = onClearError
-        )
+    LaunchedEffect(authState.isEmailVerificationPending) {
+        if (authState.isEmailVerificationPending) {
+            authStep = AuthStep.VerifyEmail
+        }
     }
+
+    LaunchedEffect(authState.isPasswordResetEmailSent) {
+        if (authState.isPasswordResetEmailSent) {
+            authStep = AuthStep.PasswordResetCode
+        }
+    }
+
+    LaunchedEffect(authState.isPasswordResetCompleted) {
+        if (authState.isPasswordResetCompleted) {
+            authStep = AuthStep.Login
+        }
+    }
+
+    when (authStep) {
+        AuthStep.Login -> {
+            LoginContent(
+                authState = authState,
+                onLogin = onLogin,
+                onGoToRegister = {
+                    onClearError()
+                    authStep = AuthStep.Register
+                },
+                onGoToPasswordReset = {
+                    onClearPasswordResetState()
+                    authStep = AuthStep.PasswordResetEmail
+                },
+                onClearError = onClearError
+            )
+        }
+
+        AuthStep.Register -> {
+            RegisterContent(
+                authState = authState,
+                onRegister = onRegister,
+                onBackToLogin = {
+                    onClearError()
+                    authStep = AuthStep.Login
+                },
+                onClearError = onClearError
+            )
+        }
+
+        AuthStep.VerifyEmail -> {
+            VerifyEmailContent(
+                authState = authState,
+                onVerifyEmailCode = onVerifyEmailCode,
+                onResendVerification = onResendVerification,
+                onCheckEmailVerification = onCheckEmailVerification,
+                onBackToLogin = {
+                    onClearError()
+                    authStep = AuthStep.Login
+                },
+                onClearError = onClearError
+            )
+        }
+
+        AuthStep.PasswordResetEmail -> {
+            PasswordResetEmailContent(
+                authState = authState,
+                onResetPassword = onResetPassword,
+                onBackToLogin = {
+                    onClearPasswordResetState()
+                    authStep = AuthStep.Login
+                },
+                onClearError = onClearError
+            )
+        }
+
+        AuthStep.PasswordResetCode -> {
+            PasswordResetCodeContent(
+                authState = authState,
+                onConfirmPasswordReset = onConfirmPasswordReset,
+                onBackToLogin = {
+                    onClearPasswordResetState()
+                    authStep = AuthStep.Login
+                },
+                onClearError = onClearError
+            )
+        }
+    }
+}
+
+private enum class AuthStep {
+    Login,
+    Register,
+    VerifyEmail,
+    PasswordResetEmail,
+    PasswordResetCode
 }
 
 @Composable
 private fun LoginContent(
     authState: AuthUiState,
     onLogin: (String, String) -> Unit,
-    onResetPassword: (String) -> Unit,
-    onResendVerification: () -> Unit,
-    onCheckEmailVerification: () -> Unit,
     onGoToRegister: () -> Unit,
+    onGoToPasswordReset: () -> Unit,
     onClearError: () -> Unit
 ) {
 
@@ -119,15 +188,6 @@ private fun LoginContent(
                     fontWeight = FontWeight.Bold,
                     color = TecmiDarkGreen
                 )
-
-                if (authState.isEmailVerificationPending) {
-                    EmailVerificationNotice(
-                        email = authState.userEmail,
-                        isLoading = authState.isLoading,
-                        onResendVerification = onResendVerification,
-                        onCheckEmailVerification = onCheckEmailVerification
-                    )
-                }
 
                 AuthTextField(
                     value = email,
@@ -169,9 +229,7 @@ private fun LoginContent(
                 )
 
                 TextButton(
-                    onClick = {
-                        onResetPassword(email)
-                    },
+                    onClick = onGoToPasswordReset,
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !authState.isLoading
                 ) {
@@ -200,8 +258,6 @@ private fun LoginContent(
 private fun RegisterContent(
     authState: AuthUiState,
     onRegister: (String, String, String, String) -> Unit,
-    onResendVerification: () -> Unit,
-    onCheckEmailVerification: () -> Unit,
     onBackToLogin: () -> Unit,
     onClearError: () -> Unit
 ) {
@@ -234,15 +290,6 @@ private fun RegisterContent(
                     fontWeight = FontWeight.Bold,
                     color = TecmiDarkGreen
                 )
-
-                if (authState.isEmailVerificationPending) {
-                    EmailVerificationNotice(
-                        email = authState.userEmail,
-                        isLoading = authState.isLoading,
-                        onResendVerification = onResendVerification,
-                        onCheckEmailVerification = onCheckEmailVerification
-                    )
-                }
 
                 AuthTextField(
                     value = name,
@@ -307,8 +354,7 @@ private fun RegisterContent(
                 PrimaryAuthButton(
                     text = "Crear cuenta",
                     isLoading = authState.isLoading,
-                    enabled = !authState.isEmailVerificationPending &&
-                        name.isNotBlank() &&
+                    enabled = name.isNotBlank() &&
                         email.isNotBlank() &&
                         password.isNotBlank() &&
                         confirmPassword.isNotBlank(),
@@ -317,6 +363,296 @@ private fun RegisterContent(
                             name,
                             email,
                             password,
+                            confirmPassword
+                        )
+                    }
+                )
+
+                TextButton(
+                    onClick = onBackToLogin,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !authState.isLoading
+                ) {
+                    Text(
+                        text = "Volver a iniciar sesión",
+                        color = TecmiDarkGreen
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VerifyEmailContent(
+    authState: AuthUiState,
+    onVerifyEmailCode: (String) -> Unit,
+    onResendVerification: () -> Unit,
+    onCheckEmailVerification: () -> Unit,
+    onBackToLogin: () -> Unit,
+    onClearError: () -> Unit
+) {
+
+    var verificationCode by remember { mutableStateOf("") }
+
+    AuthContainer(
+        subtitle = "Activa tu cuenta para continuar"
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = White
+            ),
+            elevation = CardDefaults.cardElevation(
+                defaultElevation = 3.dp
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "Verifica tu correo",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TecmiDarkGreen
+                )
+
+                EmailVerificationNotice(
+                    email = authState.userEmail,
+                    isLoading = authState.isLoading,
+                    onResendVerification = onResendVerification,
+                    onCheckEmailVerification = onCheckEmailVerification
+                )
+
+                AuthTextField(
+                    value = verificationCode,
+                    onValueChange = {
+                        verificationCode = it
+                        if (authState.hasFeedback()) {
+                            onClearError()
+                        }
+                    },
+                    label = "Código de verificación"
+                )
+
+                Text(
+                    text = "Si Firebase te manda un enlace, copia el valor de oobCode y pégalo aquí. También puedes abrir el enlace y después tocar Ya verifiqué mi correo.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                AuthFeedback(
+                    errorMessage = authState.errorMessage,
+                    successMessage = authState.successMessage
+                )
+
+                PrimaryAuthButton(
+                    text = "Validar código",
+                    isLoading = authState.isLoading,
+                    enabled = verificationCode.isNotBlank(),
+                    onClick = {
+                        onVerifyEmailCode(verificationCode)
+                    }
+                )
+
+                TextButton(
+                    onClick = onBackToLogin,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !authState.isLoading
+                ) {
+                    Text(
+                        text = "Volver a iniciar sesión",
+                        color = TecmiDarkGreen
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PasswordResetEmailContent(
+    authState: AuthUiState,
+    onResetPassword: (String) -> Unit,
+    onBackToLogin: () -> Unit,
+    onClearError: () -> Unit
+) {
+
+    var email by remember { mutableStateOf(authState.userEmail) }
+
+    AuthContainer(
+        subtitle = "Recupera el acceso a tu cuenta"
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = White
+            ),
+            elevation = CardDefaults.cardElevation(
+                defaultElevation = 3.dp
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "Olvidé mi contraseña",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TecmiDarkGreen
+                )
+
+                Text(
+                    text = "Ingresa tu correo autorizado y te enviaremos la recuperación.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                AuthTextField(
+                    value = email,
+                    onValueChange = {
+                        email = it
+                        if (authState.hasFeedback()) {
+                            onClearError()
+                        }
+                    },
+                    label = "Correo autorizado",
+                    keyboardType = KeyboardType.Email
+                )
+
+                AuthFeedback(
+                    errorMessage = authState.errorMessage,
+                    successMessage = authState.successMessage
+                )
+
+                PrimaryAuthButton(
+                    text = "Enviar recuperación",
+                    isLoading = authState.isLoading,
+                    enabled = email.isNotBlank(),
+                    onClick = {
+                        onResetPassword(email)
+                    }
+                )
+
+                TextButton(
+                    onClick = onBackToLogin,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !authState.isLoading
+                ) {
+                    Text(
+                        text = "Volver a iniciar sesión",
+                        color = TecmiDarkGreen
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PasswordResetCodeContent(
+    authState: AuthUiState,
+    onConfirmPasswordReset: (String, String, String) -> Unit,
+    onBackToLogin: () -> Unit,
+    onClearError: () -> Unit
+) {
+
+    var recoveryCode by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+
+    AuthContainer(
+        subtitle = "Confirma tu nueva contraseña"
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = White
+            ),
+            elevation = CardDefaults.cardElevation(
+                defaultElevation = 3.dp
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "Código de recuperación",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TecmiDarkGreen
+                )
+
+                Text(
+                    text = "Enviamos la recuperación a ${authState.passwordResetEmail.ifBlank { "tu correo autorizado" }}.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                AuthTextField(
+                    value = recoveryCode,
+                    onValueChange = {
+                        recoveryCode = it
+                        if (authState.hasFeedback()) {
+                            onClearError()
+                        }
+                    },
+                    label = "Código de recuperación"
+                )
+
+                Text(
+                    text = "Si Firebase te manda un enlace, copia el valor de oobCode del enlace y pégalo como código.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                AuthTextField(
+                    value = newPassword,
+                    onValueChange = {
+                        newPassword = it
+                        if (authState.hasFeedback()) {
+                            onClearError()
+                        }
+                    },
+                    label = "Nueva contraseña",
+                    keyboardType = KeyboardType.Password,
+                    isPassword = true
+                )
+
+                AuthTextField(
+                    value = confirmPassword,
+                    onValueChange = {
+                        confirmPassword = it
+                        if (authState.hasFeedback()) {
+                            onClearError()
+                        }
+                    },
+                    label = "Confirmar nueva contraseña",
+                    keyboardType = KeyboardType.Password,
+                    isPassword = true
+                )
+
+                AuthFeedback(
+                    errorMessage = authState.errorMessage,
+                    successMessage = authState.successMessage
+                )
+
+                PrimaryAuthButton(
+                    text = "Actualizar contraseña",
+                    isLoading = authState.isLoading,
+                    enabled = recoveryCode.isNotBlank() &&
+                        newPassword.isNotBlank() &&
+                        confirmPassword.isNotBlank(),
+                    onClick = {
+                        onConfirmPasswordReset(
+                            recoveryCode,
+                            newPassword,
                             confirmPassword
                         )
                     }

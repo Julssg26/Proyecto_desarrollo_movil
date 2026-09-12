@@ -41,6 +41,9 @@ import com.julm.mitecmi.ui.theme.TecmiDarkGreen
 import com.julm.mitecmi.ui.theme.TecmiGreen
 import com.julm.mitecmi.ui.theme.White
 import com.julm.mitecmi.viewmodel.AuthUiState
+import kotlinx.coroutines.delay
+
+private const val VerificationEmailCooldownMillis = 60_000L
 
 @Composable
 fun LoginScreen(
@@ -48,35 +51,28 @@ fun LoginScreen(
     onLogin: (String, String) -> Unit,
     onRegister: (String, String, String, String) -> Unit,
     onResetPassword: (String) -> Unit,
-    onVerifyEmailCode: (String) -> Unit,
-    onConfirmPasswordReset: (String, String, String) -> Unit,
     onResendVerification: () -> Unit,
     onCheckEmailVerification: () -> Unit,
+    onSignOut: () -> Unit,
     onClearError: () -> Unit,
     onClearPasswordResetState: () -> Unit
 ) {
 
     var authStep by remember { mutableStateOf(AuthStep.Login) }
 
-    LaunchedEffect(authState.isEmailVerificationPending) {
-        if (authState.isEmailVerificationPending) {
-            authStep = AuthStep.VerifyEmail
-        }
-    }
-
     LaunchedEffect(authState.isPasswordResetEmailSent) {
         if (authState.isPasswordResetEmailSent) {
-            authStep = AuthStep.PasswordResetCode
+            authStep = AuthStep.PasswordResetSent
         }
     }
 
-    LaunchedEffect(authState.isPasswordResetCompleted) {
-        if (authState.isPasswordResetCompleted) {
-            authStep = AuthStep.Login
-        }
+    val visibleAuthStep = if (authState.isEmailVerificationPending) {
+        AuthStep.VerifyEmail
+    } else {
+        authStep
     }
 
-    when (authStep) {
+    when (visibleAuthStep) {
         AuthStep.Login -> {
             LoginContent(
                 authState = authState,
@@ -108,14 +104,12 @@ fun LoginScreen(
         AuthStep.VerifyEmail -> {
             VerifyEmailContent(
                 authState = authState,
-                onVerifyEmailCode = onVerifyEmailCode,
                 onResendVerification = onResendVerification,
                 onCheckEmailVerification = onCheckEmailVerification,
                 onBackToLogin = {
-                    onClearError()
+                    onSignOut()
                     authStep = AuthStep.Login
-                },
-                onClearError = onClearError
+                }
             )
         }
 
@@ -131,15 +125,14 @@ fun LoginScreen(
             )
         }
 
-        AuthStep.PasswordResetCode -> {
-            PasswordResetCodeContent(
+        AuthStep.PasswordResetSent -> {
+            PasswordResetSentContent(
                 authState = authState,
-                onConfirmPasswordReset = onConfirmPasswordReset,
+                onResendPasswordReset = onResetPassword,
                 onBackToLogin = {
                     onClearPasswordResetState()
                     authStep = AuthStep.Login
-                },
-                onClearError = onClearError
+                }
             )
         }
     }
@@ -150,7 +143,7 @@ private enum class AuthStep {
     Register,
     VerifyEmail,
     PasswordResetEmail,
-    PasswordResetCode
+    PasswordResetSent
 }
 
 @Composable
@@ -386,14 +379,31 @@ private fun RegisterContent(
 @Composable
 private fun VerifyEmailContent(
     authState: AuthUiState,
-    onVerifyEmailCode: (String) -> Unit,
     onResendVerification: () -> Unit,
     onCheckEmailVerification: () -> Unit,
-    onBackToLogin: () -> Unit,
-    onClearError: () -> Unit
+    onBackToLogin: () -> Unit
 ) {
+    val cooldownEndsAtMillis = authState.lastVerificationEmailRequestAtMillis
+        ?.plus(VerificationEmailCooldownMillis)
+    var currentTimeMillis by remember(cooldownEndsAtMillis) {
+        mutableStateOf(System.currentTimeMillis())
+    }
+    val resendSecondsRemaining = cooldownEndsAtMillis?.let { endsAtMillis ->
+        val remainingMillis = (endsAtMillis - currentTimeMillis).coerceAtLeast(0L)
+        ((remainingMillis + 999L) / 1_000L).toInt()
+    } ?: 0
 
-    var verificationCode by remember { mutableStateOf("") }
+    LaunchedEffect(cooldownEndsAtMillis) {
+        val endsAtMillis = cooldownEndsAtMillis ?: return@LaunchedEffect
+
+        while (currentTimeMillis < endsAtMillis) {
+            currentTimeMillis = System.currentTimeMillis()
+
+            if (currentTimeMillis < endsAtMillis) {
+                delay(1_000)
+            }
+        }
+    }
 
     AuthContainer(
         subtitle = "Activa tu cuenta para continuar"
@@ -419,27 +429,29 @@ private fun VerifyEmailContent(
                     color = TecmiDarkGreen
                 )
 
-                EmailVerificationNotice(
-                    email = authState.userEmail,
-                    isLoading = authState.isLoading,
-                    onResendVerification = onResendVerification,
-                    onCheckEmailVerification = onCheckEmailVerification
-                )
-
-                AuthTextField(
-                    value = verificationCode,
-                    onValueChange = {
-                        verificationCode = it
-                        if (authState.hasFeedback()) {
-                            onClearError()
-                        }
-                    },
-                    label = "Código de verificación"
+                Text(
+                    text = "Te enviamos un enlace de verificación a:",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Text(
-                    text = "Si Firebase te manda un enlace, copia el valor de oobCode y pégalo aquí. También puedes abrir el enlace y después tocar Ya verifiqué mi correo.",
-                    fontSize = 12.sp,
+                    text = authState.userEmail.ifBlank { "tu correo autorizado" },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TecmiDarkGreen
+                )
+
+                Text(
+                    text = "Abre el correo que te enviamos y presiona el botón de verificación. " +
+                        "Cuando termines, regresa a Mi Tecmi para continuar.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = "Si no encuentras el mensaje, revisa tu carpeta de spam o correo no deseado.",
+                    fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
@@ -449,13 +461,24 @@ private fun VerifyEmailContent(
                 )
 
                 PrimaryAuthButton(
-                    text = "Validar código",
+                    text = "Ya verifiqué mi correo",
                     isLoading = authState.isLoading,
-                    enabled = verificationCode.isNotBlank(),
-                    onClick = {
-                        onVerifyEmailCode(verificationCode)
-                    }
+                    onClick = onCheckEmailVerification
                 )
+
+                OutlinedButton(
+                    onClick = onResendVerification,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !authState.isLoading && resendSecondsRemaining == 0
+                ) {
+                    Text(
+                        if (resendSecondsRemaining > 0) {
+                            "Reenviar en $resendSecondsRemaining s"
+                        } else {
+                            "Reenviar correo"
+                        }
+                    )
+                }
 
                 TextButton(
                     onClick = onBackToLogin,
@@ -554,19 +577,23 @@ private fun PasswordResetEmailContent(
 }
 
 @Composable
-private fun PasswordResetCodeContent(
+private fun PasswordResetSentContent(
     authState: AuthUiState,
-    onConfirmPasswordReset: (String, String, String) -> Unit,
-    onBackToLogin: () -> Unit,
-    onClearError: () -> Unit
+    onResendPasswordReset: (String) -> Unit,
+    onBackToLogin: () -> Unit
 ) {
+    val email = authState.passwordResetEmail
+    var resendCooldown by remember { mutableStateOf(60) }
 
-    var recoveryCode by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
+    LaunchedEffect(resendCooldown) {
+        if (resendCooldown > 0) {
+            delay(1_000)
+            resendCooldown -= 1
+        }
+    }
 
     AuthContainer(
-        subtitle = "Confirma tu nueva contraseña"
+        subtitle = "Recupera el acceso a tu cuenta"
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -583,59 +610,36 @@ private fun PasswordResetCodeContent(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "Código de recuperación",
+                    text = "Revisa tu correo",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = TecmiDarkGreen
                 )
 
                 Text(
-                    text = "Enviamos la recuperación a ${authState.passwordResetEmail.ifBlank { "tu correo autorizado" }}.",
+                    text = "Enviamos un enlace de recuperación a:",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                AuthTextField(
-                    value = recoveryCode,
-                    onValueChange = {
-                        recoveryCode = it
-                        if (authState.hasFeedback()) {
-                            onClearError()
-                        }
-                    },
-                    label = "Código de recuperación"
+                Text(
+                    text = email.ifBlank { "tu correo autorizado" },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TecmiDarkGreen
                 )
 
                 Text(
-                    text = "Si Firebase te manda un enlace, copia el valor de oobCode del enlace y pégalo como código.",
-                    fontSize = 12.sp,
+                    text = "Abre el mensaje y sigue el enlace para cambiar tu contraseña. " +
+                        "El proceso se completa de forma segura desde la página indicada en el correo.",
+                    fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                AuthTextField(
-                    value = newPassword,
-                    onValueChange = {
-                        newPassword = it
-                        if (authState.hasFeedback()) {
-                            onClearError()
-                        }
-                    },
-                    label = "Nueva contraseña",
-                    keyboardType = KeyboardType.Password,
-                    isPassword = true
-                )
-
-                AuthTextField(
-                    value = confirmPassword,
-                    onValueChange = {
-                        confirmPassword = it
-                        if (authState.hasFeedback()) {
-                            onClearError()
-                        }
-                    },
-                    label = "Confirmar nueva contraseña",
-                    keyboardType = KeyboardType.Password,
-                    isPassword = true
+                Text(
+                    text = "Si no encuentras el mensaje, revisa la carpeta de spam o correo no deseado.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 AuthFeedback(
@@ -644,17 +648,18 @@ private fun PasswordResetCodeContent(
                 )
 
                 PrimaryAuthButton(
-                    text = "Actualizar contraseña",
-                    isLoading = authState.isLoading,
-                    enabled = recoveryCode.isNotBlank() &&
-                        newPassword.isNotBlank() &&
-                        confirmPassword.isNotBlank(),
+                    text = if (resendCooldown > 0) {
+                        "Reenviar en $resendCooldown s"
+                    } else {
+                        "Reenviar correo"
+                    },
+                    isLoading = false,
+                    enabled = email.isNotBlank() &&
+                        resendCooldown == 0 &&
+                        !authState.isLoading,
                     onClick = {
-                        onConfirmPasswordReset(
-                            recoveryCode,
-                            newPassword,
-                            confirmPassword
-                        )
+                        resendCooldown = 60
+                        onResendPasswordReset(email)
                     }
                 )
 
@@ -767,50 +772,6 @@ private fun AuthTextField(
             keyboardType = keyboardType
         )
     )
-}
-
-@Composable
-private fun EmailVerificationNotice(
-    email: String,
-    isLoading: Boolean,
-    onResendVerification: () -> Unit,
-    onCheckEmailVerification: () -> Unit
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = "Verifica tu correo para continuar.",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = TecmiDarkGreen
-        )
-
-        Text(
-            text = "Enviamos el enlace a ${email.ifBlank { "tu correo autorizado" }}. Revisa spam o correo no deseado.",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        OutlinedButton(
-            onClick = onResendVerification,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isLoading
-        ) {
-            Text("Reenviar verificación")
-        }
-
-        TextButton(
-            onClick = onCheckEmailVerification,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isLoading
-        ) {
-            Text(
-                text = "Ya verifiqué mi correo",
-                color = TecmiDarkGreen
-            )
-        }
-    }
 }
 
 @Composable

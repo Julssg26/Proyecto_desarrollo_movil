@@ -1,10 +1,12 @@
 package com.julm.mitecmi.viewmodel
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
@@ -23,6 +25,7 @@ data class AuthUiState(
     val errorMessage: String = "",
     val successMessage: String = "",
     val isEmailVerificationPending: Boolean = false,
+    val lastVerificationEmailRequestAtMillis: Long? = null,
     val passwordResetEmail: String = "",
     val isPasswordResetEmailSent: Boolean = false,
     val isPasswordResetCompleted: Boolean = false
@@ -31,6 +34,10 @@ data class AuthUiState(
 class AuthViewModel(
     private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance()
 ) : ViewModel() {
+
+    private companion object {
+        const val logTag = "AuthViewModel"
+    }
 
     private val authStateListener =
         FirebaseAuth.AuthStateListener { auth ->
@@ -45,6 +52,7 @@ class AuthViewModel(
         _uiState.asStateFlow()
 
     init {
+        firebaseAuth.setLanguageCode("es")
         updateUser(firebaseAuth.currentUser)
         firebaseAuth.addAuthStateListener(authStateListener)
     }
@@ -157,12 +165,23 @@ class AuthViewModel(
         user.reload()
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    updateUser(firebaseAuth.currentUser)
+                    val refreshedUser = firebaseAuth.currentUser
 
-                    if (firebaseAuth.currentUser?.isEmailVerified == false) {
-                        showError(
-                            "Todavía no aparece verificado. Revisa tu correo y vuelve a intentar."
-                        )
+                    when {
+                        refreshedUser == null -> {
+                            showError("No se pudo cargar tu sesión.")
+                        }
+
+                        refreshedUser.isEmailVerified -> {
+                            updateUser(refreshedUser)
+                        }
+
+                        else -> {
+                            showError(
+                                "Tu correo todavía no ha sido verificado. Abre el enlace que " +
+                                    "enviamos a tu correo e inténtalo nuevamente."
+                            )
+                        }
                     }
                 } else {
                     showError(
@@ -205,6 +224,8 @@ class AuthViewModel(
     fun resetPassword(
         email: String
     ) {
+        val normalizedEmail = email.trim()
+
         if (email.isBlank()) {
             showError("Ingresa tu correo para enviarte la recuperación.")
             return
@@ -219,26 +240,33 @@ class AuthViewModel(
             isLoading = true,
             errorMessage = "",
             successMessage = "",
-            passwordResetEmail = email.trim(),
+            passwordResetEmail = normalizedEmail,
             isPasswordResetEmailSent = false,
             isPasswordResetCompleted = false
         )
 
         firebaseAuth
-            .sendPasswordResetEmail(email.trim())
+            .sendPasswordResetEmail(normalizedEmail)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
+                    Log.i(
+                        logTag,
+                        "Firebase aceptó el envío del correo de recuperación."
+                    )
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         errorMessage = "",
-                        successMessage = "Te enviamos un correo para recuperar tu contraseña.",
-                        passwordResetEmail = email.trim(),
+                        successMessage = "Correo enviado.",
+                        passwordResetEmail = normalizedEmail,
                         isPasswordResetEmailSent = true,
                         isPasswordResetCompleted = false
                     )
                 } else {
+                    val exception = task.exception
+
+                    logPasswordResetEmailError(exception)
                     showError(
-                        resetPasswordErrorMessage(task.exception)
+                        resetPasswordErrorMessage(exception)
                     )
                 }
             }
@@ -283,6 +311,10 @@ class AuthViewModel(
             newPassword
         ).addOnCompleteListener { task ->
             if (task.isSuccessful) {
+                Log.i(
+                    logTag,
+                    "Firebase confirmó el cambio de contraseña."
+                )
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     errorMessage = "",
@@ -291,8 +323,11 @@ class AuthViewModel(
                     isPasswordResetCompleted = true
                 )
             } else {
+                val exception = task.exception
+
+                logPasswordResetConfirmationError(exception)
                 showError(
-                    actionCodeErrorMessage(task.exception)
+                    actionCodeErrorMessage(exception)
                 )
             }
         }
@@ -436,20 +471,29 @@ class AuthViewModel(
         user: FirebaseUser,
         successMessage: String
     ) {
+        val requestedAtMillis = System.currentTimeMillis()
+
         _uiState.value = _uiState.value.copy(
             isLoading = true,
             errorMessage = "",
-            successMessage = ""
+            successMessage = "",
+            lastVerificationEmailRequestAtMillis = requestedAtMillis
         )
 
         user.sendEmailVerification()
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     updateUser(firebaseAuth.currentUser)
+                    _uiState.value = _uiState.value.copy(
+                        lastVerificationEmailRequestAtMillis = requestedAtMillis
+                    )
                     showSuccess(successMessage)
                 } else {
+                    val exception = task.exception
+
+                    logVerificationEmailError(exception)
                     showError(
-                        verificationEmailErrorMessage(task.exception)
+                        verificationEmailErrorMessage(exception)
                     )
                 }
             }
@@ -488,13 +532,23 @@ class AuthViewModel(
     private fun updateUser(
         user: FirebaseUser?
     ) {
+        val previousState = _uiState.value
+        val preserveVerificationRequest = user != null &&
+            !user.isEmailVerified &&
+            user.email == previousState.userEmail
+
         _uiState.value = AuthUiState(
             isAuthenticated = user != null && user.isEmailVerified,
             isLoading = false,
             userName = user?.displayName.orEmpty(),
             userEmail = user?.email.orEmpty(),
             errorMessage = "",
-            isEmailVerificationPending = user != null && !user.isEmailVerified
+            isEmailVerificationPending = user != null && !user.isEmailVerified,
+            lastVerificationEmailRequestAtMillis = if (preserveVerificationRequest) {
+                previousState.lastVerificationEmailRequestAtMillis
+            } else {
+                null
+            }
         )
     }
 
@@ -546,41 +600,126 @@ class AuthViewModel(
     private fun resetPasswordErrorMessage(
         exception: Exception?
     ): String {
-        return when (exception) {
+        if (exception is FirebaseTooManyRequestsException) {
+            return "Has realizado demasiadas solicitudes. Por seguridad, " +
+                "espera unos minutos antes de volver a intentarlo."
+        }
+
+        val message = exception?.localizedMessage
+            ?: exception?.message
+            ?: "Firebase no proporcionó un mensaje para este fallo."
+        val errorCode = (exception as? FirebaseAuthException)?.errorCode
+
+        val userMessage = when (exception) {
             is FirebaseAuthInvalidCredentialsException -> {
-                "Revisa que el correo esté escrito correctamente."
+                "Firebase rechazó el correo. Revisa que esté escrito correctamente."
             }
 
             is FirebaseAuthInvalidUserException -> {
-                "No encontramos una cuenta con ese correo."
+                "Firebase no encontró una cuenta válida con ese correo."
             }
 
             is FirebaseNetworkException -> {
-                "Revisa tu conexión e inténtalo de nuevo."
+                "Firebase no pudo conectarse para enviar la recuperación. Revisa tu conexión."
             }
 
             else -> {
-                "No se pudo enviar el correo de recuperación."
+                "Firebase rechazó el envío del correo de recuperación."
             }
         }
+
+        return buildString {
+            append(userMessage)
+            append(" Detalle de Firebase: ")
+            append(message)
+
+            if (errorCode != null) {
+                append(" (código: ")
+                append(errorCode)
+                append(")")
+            }
+        }
+    }
+
+    private fun logPasswordResetEmailError(
+        exception: Exception?
+    ) {
+        val exceptionType = exception?.javaClass?.name ?: "sin excepción"
+        val message = exception?.message ?: "sin mensaje"
+        val errorCode = (exception as? FirebaseAuthException)?.errorCode ?: "sin código"
+
+        Log.e(
+            logTag,
+            "Error al enviar correo de recuperación. " +
+                "tipo=$exceptionType, mensaje=$message, código=$errorCode",
+            exception
+        )
+    }
+
+    private fun logPasswordResetConfirmationError(
+        exception: Exception?
+    ) {
+        val exceptionType = exception?.javaClass?.name ?: "sin excepción"
+        val message = exception?.message ?: "sin mensaje"
+        val errorCode = (exception as? FirebaseAuthException)?.errorCode ?: "sin código"
+
+        Log.e(
+            logTag,
+            "Error al confirmar el cambio de contraseña. " +
+                "tipo=$exceptionType, mensaje=$message, código=$errorCode",
+            exception
+        )
     }
 
     private fun verificationEmailErrorMessage(
         exception: Exception?
     ): String {
-        return when (exception) {
-            is FirebaseNetworkException -> {
-                "Revisa tu conexión e inténtalo de nuevo."
-            }
+        if (exception is FirebaseTooManyRequestsException) {
+            return "Has solicitado demasiados correos de verificación. " +
+                "Espera unos minutos antes de volver a intentarlo."
+        }
 
-            is FirebaseTooManyRequestsException -> {
-                "Firebase bloqueó temporalmente los envíos. Espera unos minutos e inténtalo de nuevo."
+        val message = exception?.localizedMessage
+            ?: exception?.message
+            ?: "Firebase no proporcionó un mensaje para este fallo."
+        val errorCode = (exception as? FirebaseAuthException)?.errorCode
+
+        val userMessage = when (exception) {
+            is FirebaseNetworkException -> {
+                "Firebase no pudo conectarse para enviar el correo. Revisa tu conexión."
             }
 
             else -> {
-                "No se pudo enviar el correo de verificación."
+                "Firebase rechazó el envío del correo de verificación."
             }
         }
+
+        return buildString {
+            append(userMessage)
+            append(" Detalle de Firebase: ")
+            append(message)
+
+            if (errorCode != null) {
+                append(" (código: ")
+                append(errorCode)
+                append(")")
+            }
+        }
+    }
+
+    private fun logVerificationEmailError(
+        exception: Exception?
+    ) {
+        val exceptionType = exception?.javaClass?.name ?: "sin excepción"
+        val message = exception?.message ?: "sin mensaje"
+        val errorCode = (exception as? FirebaseAuthException)?.errorCode ?: "sin código"
+
+        Log.e(
+            logTag,
+            "Error al enviar correo de verificación. " +
+                "tipo=$exceptionType, mensaje=$message, código=$errorCode",
+            exception
+        )
     }
 
     private fun actionCodeErrorMessage(
